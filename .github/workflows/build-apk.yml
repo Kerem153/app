@@ -12,13 +12,28 @@ jobs:
     steps:
       - name: Download and build
         run: |
-          set -e
+          set -ex
           curl -fL --retry 3 https://github.com/Kerem153/app/releases/download/1.0/uygulama.zip -o source.zip
           unzip -q source.zip -d source
-          project="$(find source -name apktool.yml -print -quit)"
-          test -n "$project"
+          find source -maxdepth 3 -type f | head -80
+          project="$(find source -iname apktool.yml -print -quit)"
+          if [ -z "$project" ]; then
+            echo "::error::apktool.yml missing. Checking for original APK or packaged Android files."
+            apk="$(find source -iname '*.apk' -print -quit)"
+            if [ -n "$apk" ]; then
+              cp "$apk" unsigned.apk
+            else
+              manifest="$(find source -iname AndroidManifest.xml -print -quit)"
+              if [ -n "$manifest" ] && [ -f "$(dirname "$manifest")/classes.dex" ] && [ -f "$(dirname "$manifest")/resources.arsc" ]; then
+                (cd "$(dirname "$manifest")" && zip -q -r "$GITHUB_WORKSPACE/unsigned.apk" . -x 'META-INF/*')
+              else
+                echo "No buildable APK project found"
+                exit 1
+              fi
+            fi
+          fi
           curl -fL https://github.com/iBotPeaches/Apktool/releases/download/v2.12.1/apktool_2.12.1.jar -o apktool.jar
-          java -Xmx5g -jar apktool.jar b "$(dirname "$project")" -o unsigned.apk
+          if [ ! -f unsigned.apk ]; then java -Xmx5g -jar apktool.jar b "$(dirname "$project")" -o unsigned.apk; fi
           tools="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
           test -n "$tools"
           "$(dirname "$tools")/zipalign" -p -f 4 unsigned.apk aligned.apk
