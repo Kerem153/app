@@ -51,6 +51,16 @@ jobs:
           fi
           if [ ! -f unsigned.apk ]; then
             curl -fL https://github.com/iBotPeaches/Apktool/releases/download/v2.12.1/apktool_2.12.1.jar -o apktool.jar
+            python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("source/uygulama/res/values-v31/colors.xml")
+          if p.exists():
+              s = p.read_text()
+              s = re.sub(r'@android:color/(dim_foreground_light_disabled|dim_foreground_light|bright_foreground_dark|hint_foreground_dark|dim_foreground_dark_inverse_disabled|dim_foreground_dark_inverse|dim_foreground_dark_disabled|dim_foreground_dark|bright_foreground_light_inverse|bright_foreground_dark_inverse|bright_foreground_light_disabled|bright_foreground_dark_disabled|bright_foreground_light|shadow|perms_dangerous_perm_color|dim_foreground_light_inverse|perms_dangerous_grp_color|lighter_gray|suggestion_highlight_text)\b', r'@*android:color/\1', s)
+              s = s.replace('@android:color/input_method_navigation_guard', '#ff000000').replace('@*android:color/input_method_navigation_guard', '#ff000000')
+              p.write_text(s)
+          PY
             java -Xmx5g -jar apktool.jar b "$(dirname "$project")" -o unsigned.apk
           fi
           tools="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
