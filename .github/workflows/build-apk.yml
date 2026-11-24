@@ -1,0 +1,31 @@
+name: Build APK
+on:
+  push:
+    paths:
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and build
+        run: |
+          set -e
+          curl -fL --retry 3 https://github.com/Kerem153/app/releases/download/1.0/uygulama.zip -o source.zip
+          unzip -q source.zip -d source
+          project="$(find source -name apktool.yml -print -quit)"
+          test -n "$project"
+          curl -fL https://github.com/iBotPeaches/Apktool/releases/download/v2.12.1/apktool_2.12.1.jar -o apktool.jar
+          java -Xmx5g -jar apktool.jar b "$(dirname "$project")" -o unsigned.apk
+          tools="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
+          test -n "$tools"
+          "$(dirname "$tools")/zipalign" -p -f 4 unsigned.apk aligned.apk
+          keytool -genkeypair -keystore build.jks -storepass android -keypass android -alias build -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Build"
+          "$tools" sign --ks build.jks --ks-pass pass:android --key-pass pass:android --out uygulama.apk aligned.apk
+          "$tools" verify uygulama.apk
+      - name: Publish APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload 1.0 uygulama.apk --repo "${{ github.repository }}" --clobber
