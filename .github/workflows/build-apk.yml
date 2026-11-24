@@ -17,6 +17,23 @@ jobs:
           unzip -q source.zip -d source
           find source -maxdepth 3 -type f | sed -n '1,80p'
           project="$(find source -iname apktool.yml -print -quit)"
+          if [ -z "$project" ] && [ -d source/uygulama/smali ]; then
+            python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          p = Path("source/uygulama")
+          root = ET.parse(p / "AndroidManifest.xml").getroot()
+          ns = "{http://schemas.android.com/apk/res/android}"
+          sdk = root.find("uses-sdk")
+          minimum = sdk.get(ns+"minSdkVersion", "23") if sdk is not None else "23"
+          target = sdk.get(ns+"targetSdkVersion", "35") if sdk is not None else "35"
+          version = root.get(ns+"versionCode", "1")
+          name = root.get(ns+"versionName", "1.0")
+          import json
+          (p / "apktool.yml").write_text("version: 2.12.1\napkFileName: uygulama.apk\nisFrameworkApk: false\nusesFramework:\n  ids:\n  - 1\nsdkInfo:\n  minSdkVersion: "+json.dumps(minimum)+"\n  targetSdkVersion: "+json.dumps(target)+"\npackageInfo:\n  forcedPackageId: 127\nversionInfo:\n  versionCode: "+json.dumps(version)+"\n  versionName: "+json.dumps(name)+"\nresourcesAreCompressed: false\nsharedLibrary: false\nsparseResources: false\nunknownFiles: {}\ndoNotCompress:\n- resources.arsc\n- so\n")
+          PY
+            project=source/uygulama/apktool.yml
+          fi
           if [ -z "$project" ]; then
             echo "apktool.yml missing. Checking for original APK or packaged Android files."
             apk="$(find source -iname '*.apk' -print -quit)"
